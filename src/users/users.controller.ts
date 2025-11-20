@@ -58,7 +58,7 @@ export class UsersController {
 
   @UseGuards(AuthGuard)
   @Get('users/me')
-  @ApiOperation({ summary: '내 프로필 조회' })
+  @ApiOperation({ summary: '내 프로필 조회, 토큰 있어야 합니다.' })
   @ApiBearerAuth('access-token') // 위 DocumentBuilder에서 쓴 이름
   @ApiOkResponse({
     description: '내 프로필 정보 + 사진 수 + 받은 좋아요 수',
@@ -70,7 +70,7 @@ export class UsersController {
 
   @UseGuards(AuthGuard)
   @Patch('users/me')
-  @ApiOperation({ summary: '내 프로필 수정' })
+  @ApiOperation({ summary: '내 프로필 수정, 토큰 있어 합니다.' })
   @ApiBearerAuth('access-token')
   @ApiOkResponse({ description: '수정된 프로필 반환' })
   updateMe(
