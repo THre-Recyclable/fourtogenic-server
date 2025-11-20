@@ -1,7 +1,11 @@
-// auth.guard.ts
-import { CanActivate, ExecutionContext, Injectable } from '@nestjs/common';
+// src/users/auth.guard.ts
+import {
+  CanActivate,
+  ExecutionContext,
+  Injectable,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { Request } from 'express';
-import { UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { jwtConstants } from './constants';
 
@@ -10,19 +14,16 @@ export class AuthGuard implements CanActivate {
   constructor(private jwtService: JwtService) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
-    const request = context.switchToHttp().getRequest<Request>();
-
-    // 1️⃣ Swagger 문서/JSON/정적 리소스는 그냥 통과
-    const path = request.path;
-    if (
-      path.startsWith('/api-docs') || // Swagger UI
-      path.startsWith('/api-json') || // Swagger JSON (설정에 따라 이름 다를 수 있음)
-      path.startsWith('/swagger') // 혹시 다른 prefix 쓰고 있으면 추가
-    ) {
+    // HTTP 아닌 컨텍스트(웹소켓 등)이면 그냥 통과
+    if (context.getType() !== 'http') {
       return true;
     }
 
+    const request = context.switchToHttp().getRequest<Request>();
     const token = this.extractTokenFromHeader(request);
+
+    // 🔹 여기서 Swagger 관련 path 예외 처리 안 해도 됨
+    //   (우리는 Guard를 라우트 레벨에만 달아둘 거라 /api-docs 자체는 Guard를 안 탐)
 
     if (!token) {
       throw new UnauthorizedException('No token provided');
@@ -32,6 +33,7 @@ export class AuthGuard implements CanActivate {
       const payload = await this.jwtService.verifyAsync(token, {
         secret: jwtConstants.secret,
       });
+
       (request as any).user = payload;
       return true;
     } catch (err: any) {
