@@ -24,6 +24,10 @@ import {
   ApiUnauthorizedResponse,
   ApiBadRequestResponse,
 } from '@nestjs/swagger';
+import {
+  MyProfileResponseDto,
+  PublicProfileResponseDto,
+} from './dto/profile-response.dto';
 
 interface JwtPayload {
   sub: string;
@@ -59,9 +63,10 @@ export class UsersController {
   @UseGuards(AuthGuard)
   @Get('users/me')
   @ApiOperation({ summary: '내 프로필 조회, 토큰 있어야 합니다.' })
-  @ApiBearerAuth('access-token') // 위 DocumentBuilder에서 쓴 이름
+  @ApiBearerAuth('access-token')
   @ApiOkResponse({
     description: '내 프로필 정보 + 사진 수 + 받은 좋아요 수',
+    type: MyProfileResponseDto,
   })
   getMe(@Req() req: Request & { user: JwtPayload }) {
     const userId = req.user.sub;
@@ -72,7 +77,10 @@ export class UsersController {
   @Patch('users/me')
   @ApiOperation({ summary: '내 프로필 수정, 토큰 있어 합니다.' })
   @ApiBearerAuth('access-token')
-  @ApiOkResponse({ description: '수정된 프로필 반환' })
+  @ApiOkResponse({
+    description: '수정된 프로필 반환',
+    type: MyProfileResponseDto,
+  })
   updateMe(
     @Req() req: Request & { user: JwtPayload },
     @Body() dto: UpdateProfileDto,
@@ -85,6 +93,7 @@ export class UsersController {
   @ApiOperation({ summary: '공개 프로필 조회' })
   @ApiOkResponse({
     description: '해당 유저의 공개 프로필 + 사진/좋아요 수',
+    type: PublicProfileResponseDto,
   })
   getPublicProfile(@Param('id') id: string) {
     return this.usersService.getPublicProfile(id);
