@@ -1,0 +1,134 @@
+// schema.prisma -------------------------------------------------
+datasource db {
+  provider = "postgresql" // 원하면 mysql/sqlite 등으로 변경
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum Visibility {
+  PUBLIC
+  PRIVATE
+}
+
+enum LikeTargetType {
+  PHOTO
+  ALBUM
+}
+
+// -------------------- User & Auth ------------------------------
+model User {
+  id           String @id @default(cuid())
+  email        String @unique
+  username     String @unique // /users/search, 공개 프로필용
+  passwordHash String
+
+  displayName String?
+  bio         String?
+  avatarUrl   String?
+
+  photos        Photo[]
+  albums        Album[]
+  likes         Like[]
+  refreshTokens RefreshToken[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// refresh 토큰 기반 /auth/refresh 처리용(필요 없다면 삭제해도 됨)
+model RefreshToken {
+  id     String @id @default(cuid())
+  user   User   @relation(fields: [userId], references: [id])
+  userId String
+
+  token     String   @unique
+  expiresAt DateTime
+  revoked   Boolean  @default(false)
+
+  createdAt DateTime @default(now())
+}
+
+// -------------------- Photos ----------------------------------
+model Photo {
+  id      String @id @default(cuid())
+  owner   User   @relation(fields: [ownerId], references: [id])
+  ownerId String
+
+  // 실제 파일 경로나 S3 URL 등
+  fileUrl     String
+  title       String?
+  description String?
+
+  visibility Visibility @default(PRIVATE) // ?visibility= 필터
+  isShared   Boolean    @default(false) // 사진 공유 허용/취소
+
+  albums PhotosOnAlbums[]
+  likes  Like[]           @relation("PhotoLikes")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([ownerId, visibility])
+  @@index([createdAt])
+}
+
+// -------------------- Albums ----------------------------------
+model Album {
+  id      String @id @default(cuid())
+  owner   User   @relation(fields: [ownerId], references: [id])
+  ownerId String
+
+  title       String
+  description String?
+
+  visibility Visibility @default(PRIVATE)
+
+  photos PhotosOnAlbums[]
+  likes  Like[]           @relation("AlbumLikes")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([ownerId, visibility])
+  @@index([createdAt])
+}
+
+// 사진–앨범 다대다 관계 (/photos/{id}/albums, /albums/{id}/photos)
+model PhotosOnAlbums {
+  id      String   @id @default(cuid())
+  photo   Photo    @relation(fields: [photoId], references: [id])
+  photoId String
+  album   Album    @relation(fields: [albumId], references: [id])
+  albumId String
+  addedAt DateTime @default(now())
+
+  @@unique([photoId, albumId]) // 같은 사진을 같은 앨범에 두 번 추가 금지
+  @@index([albumId])
+  @@index([photoId])
+}
+
+// -------------------- Likes -----------------------------------
+model Like {
+  id     String @id @default(cuid())
+  user   User   @relation(fields: [userId], references: [id])
+  userId String
+
+  targetType LikeTargetType
+
+  // target_type = PHOTO 일 때만 photoId 사용
+  photo   Photo?  @relation("PhotoLikes", fields: [photoId], references: [id])
+  photoId String?
+
+  // target_type = ALBUM 일 때만 albumId 사용
+  album   Album?  @relation("AlbumLikes", fields: [albumId], references: [id])
+  albumId String?
+
+  createdAt DateTime @default(now())
+
+  // 한 유저가 동일 대상에 여러 번 좋아요 못 누르게
+  @@unique([userId, targetType, photoId, albumId])
+  @@index([userId, targetType])
+}
