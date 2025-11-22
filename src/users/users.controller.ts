@@ -75,7 +75,7 @@ export class UsersController {
 
   @UseGuards(AuthGuard)
   @Patch('users/me')
-  @ApiOperation({ summary: '내 프로필 수정, 토큰 있어 합니다.' })
+  @ApiOperation({ summary: '내 프로필 수정, 토큰 있어야 합니다.' })
   @ApiBearerAuth('access-token')
   @ApiOkResponse({
     description: '수정된 프로필 반환',

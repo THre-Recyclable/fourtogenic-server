@@ -33,6 +33,12 @@ export class MyProfileResponseDto {
   createdAt: string;
 
   @ApiProperty({
+    example: '2025-11-20T13:20:15.123Z',
+    description: '계정 업데이트 시각 (ISO 8601)',
+  })
+  updatedAt: string;
+
+  @ApiProperty({
     example: 12,
     description: '내가 올린 사진 수',
   })
@@ -72,6 +78,12 @@ export class PublicProfileResponseDto {
     description: '계정 생성 시각 (ISO 8601)',
   })
   createdAt: string;
+
+  @ApiProperty({
+    example: '2025-11-20T13:20:15.123Z',
+    description: '계정 업데이트 시각 (ISO 8601)',
+  })
+  updatedAt: string;
 
   @ApiProperty({
     example: 8,
