@@ -33,6 +33,7 @@ import {
 import { Visibility } from '@prisma/client';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ChangePhotoVisibilityDto } from './dto/change-photo-visibility.dto';
+import * as multer from 'multer';
 
 interface JwtPayload {
   sub: string;
@@ -49,7 +50,11 @@ export class PhotosController {
 
   // 사진 업로드: multipart/form-data + file
   @Post('photos')
-  @UseInterceptors(FileInterceptor('file'))
+  @UseInterceptors(
+    FileInterceptor('file', {
+      storage: multer.memoryStorage(),
+    }),
+  )
   @ApiOperation({ summary: '사진 업로드 & 메타 생성 (파일 업로드)' })
   @ApiConsumes('multipart/form-data')
   @ApiBody({

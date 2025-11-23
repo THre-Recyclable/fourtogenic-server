@@ -12,10 +12,14 @@ import { MyPhotosQueryDto } from './dto/my-photos-query.dto';
 import { AddToAlbumDto } from './dto/add-to-album.dto';
 import * as fs from 'fs/promises';
 import { join } from 'path';
+import { S3Service } from '../storage/s3.service';
 
 @Injectable()
 export class PhotosService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly s3: S3Service,
+  ) {}
 
   // 파일 업로드 + 메타 생성
   async createPhoto(
@@ -29,8 +33,37 @@ export class PhotosService {
 
     const visibility = body.visibility ?? Visibility.PRIVATE;
 
+    // 1) S3에 올릴 key 생성
+    const safeName = file.originalname.replace(/[^a-zA-Z0-9.\-_]/g, '_');
+    const key = `photos/${ownerId}/${Date.now()}-${safeName}`;
+
+    // 2) S3 업로드
+    if (!file.buffer) {
+      // 혹시 memoryStorage 안 썼는데도 여기 들어오면 에러
+      throw new BadRequestException('파일 버퍼가 비어 있습니다.');
+    }
+
+    const fileUrl = await this.s3.uploadPublicFile({
+      buffer: file.buffer,
+      mimetype: file.mimetype,
+      key,
+    });
+
+    // 3) DB 저장
+    const photo = await this.prisma.photo.create({
+      data: {
+        ownerId,
+        fileUrl, // 이제는 S3의 https://... URL
+        title: body.title,
+        description: body.description,
+        visibility,
+      },
+    });
+
+    // ===deprecated: 로컬 저장소용 코드 ===
     // 실제로 외부에서 접근 가능한 URL을 어떻게 만들지 정해야 함
     // 여기서는 /uploads 를 static으로 서빙한다고 가정
+    /*
     const fileUrl = `/uploads/${file.filename}`;
 
     const photo = await this.prisma.photo.create({
@@ -41,7 +74,7 @@ export class PhotosService {
         description: body.description,
         visibility,
       },
-    });
+    });*/
 
     return photo;
   }
@@ -108,28 +141,35 @@ export class PhotosService {
       throw new ForbiddenException('You cannot delete this photo');
     }
 
-    // 1) 실제 파일 경로 계산
-    // fileUrl: "/uploads/1763811628031-339602577.jpg"
-    // → 프로젝트 루트 기준: "<프로젝트루트>/uploads/1763811628031-339602577.jpg"
-    const relativePath = (photo.fileUrl || '').replace(/^\//, ''); // 앞의 '/' 제거
-    const filePath = join(process.cwd(), relativePath);
+    // fileUrl이 http로 시작하면 S3라고 간주
+    const fileUrl = photo.fileUrl || '';
 
-    // 2) 파일 삭제 시도 (없으면 에러 무시)
-    try {
-      await fs.unlink(filePath);
-      // console.log('Deleted file:', filePath);
-    } catch (err: any) {
-      if (err?.code === 'ENOENT') {
-        // 파일이 이미 없으면 그냥 무시
-        // console.warn('File already missing:', filePath);
-      } else {
-        console.error('Failed to delete file:', filePath, err);
-        // 여기서 에러를 그대로 throw 할지, 그냥 DB만 지울지는 취향
-        // throw err;
+    if (fileUrl.startsWith('http')) {
+      // S3 객체 키 추출 (ex: https://.../photos/uid/xxx.png → /photos/uid/xxx.png)
+      try {
+        const url = new URL(fileUrl);
+        const key = url.pathname.replace(/^\//, '');
+        if (key) {
+          await this.s3.deleteObject(key);
+        }
+      } catch (err) {
+        console.error('Failed to parse S3 URL or delete:', fileUrl, err);
+      }
+    } else if (fileUrl.startsWith('/')) {
+      // 옛날 로컬 /uploads/... 삭제 로직 유지
+      const relativePath = fileUrl.replace(/^\//, '');
+      const filePath = join(process.cwd(), relativePath);
+
+      try {
+        await fs.unlink(filePath);
+      } catch (err: any) {
+        if (err?.code !== 'ENOENT') {
+          console.error('Failed to delete local file:', filePath, err);
+        }
       }
     }
 
-    // 3) DB 레코드 삭제
+    // DB 레코드 삭제
     await this.prisma.photo.delete({
       where: { id: photoId },
     });

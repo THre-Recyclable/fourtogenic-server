@@ -8,6 +8,7 @@ import { AuthGuard } from '../users/auth.guard';
 import { MulterModule } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
 import { extname } from 'path';
+import { S3Service } from 'src/storage/s3.service';
 
 @Module({
   imports: [
@@ -28,6 +29,6 @@ import { extname } from 'path';
     }),
   ],
   controllers: [PhotosController],
-  providers: [PhotosService, PrismaService, AuthGuard],
+  providers: [PhotosService, PrismaService, AuthGuard, S3Service],
 })
 export class PhotosModule {}
