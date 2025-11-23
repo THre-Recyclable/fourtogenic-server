@@ -16,14 +16,14 @@ async function bootstrap() {
 
   console.log('STATIC UPLOAD PATH:', uploadsPath);
 
-  /*
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true, // DTO에 없는 필드는 자동 제거
       forbidNonWhitelisted: false, // true로 하면 DTO에 없는 필드 들어오면 에러
       transform: true, // payload를 DTO 클래스로 변환
+      transformOptions: { enableImplicitConversion: true },
     }),
-  );*/
+  );
 
   const config = new DocumentBuilder()
     .setTitle('Fourtogenic API')
