@@ -1,3 +1,4 @@
+//src/users.service.ts
 import {
   Injectable,
   BadRequestException,
@@ -12,12 +13,14 @@ import * as bcrypt from 'bcrypt';
 import { JwtService } from '@nestjs/jwt';
 import { jwtConstants } from './constants';
 import { LikeTargetType } from '@prisma/client';
+import { S3Service } from 'src/storage/s3.service';
 
 @Injectable()
 export class UsersService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly jwtService: JwtService,
+    private readonly s3: S3Service,
   ) {}
 
   // ----------- Auth -------------
@@ -87,13 +90,35 @@ export class UsersService {
     return this.getProfileWithStats(userId, false);
   }
 
-  async updateMe(userId: string, dto: UpdateProfileDto) {
+  async updateMe(
+    userId: string,
+    dto: UpdateProfileDto,
+    file?: Express.Multer.File, // ✅ 파일 추가
+  ) {
+    let avatarUrl = dto.avatarUrl; // URL로 직접 세팅하는 것도 여전히 허용
+
+    // 파일이 들어왔으면 파일 > S3 업로드가 우선
+    if (file) {
+      if (!file.buffer) {
+        throw new BadRequestException('파일 버퍼가 비어 있습니다.');
+      }
+
+      const safeName = file.originalname.replace(/[^a-zA-Z0-9.\-_]/g, '_');
+      const key = `avatars/${userId}/${Date.now()}-${safeName}`;
+
+      avatarUrl = await this.s3.uploadPublicFile({
+        buffer: file.buffer,
+        mimetype: file.mimetype,
+        key,
+      });
+    }
+
     const user = await this.prisma.user.update({
       where: { id: userId },
       data: {
         displayName: dto.displayName,
         bio: dto.bio,
-        avatarUrl: dto.avatarUrl,
+        avatarUrl, // 파일이 있으면 새 URL, 없으면 dto.avatarUrl 사용
       },
     });
 

@@ -41,6 +41,11 @@ export class AlbumsService {
       orderBy: { createdAt: 'desc' },
       take: limit + 1,
       ...(cursor && { cursor: { id: cursor }, skip: 1 }),
+      include: {
+        _count: {
+          select: { likes: true },
+        },
+      },
     });
 
     let nextCursor: string | null = null;
@@ -50,7 +55,16 @@ export class AlbumsService {
     }
 
     return {
-      items: albums,
+      items: albums.map((a) => ({
+        id: a.id,
+        ownerId: a.ownerId,
+        title: a.title,
+        description: a.description,
+        visibility: a.visibility,
+        createdAt: a.createdAt,
+        updatedAt: a.updatedAt,
+        likesCount: a._count.likes,
+      })),
       nextCursor,
     };
   }
@@ -59,6 +73,11 @@ export class AlbumsService {
   async getAlbumById(albumId: string, currentUserId: string) {
     const album = await this.prisma.album.findUnique({
       where: { id: albumId },
+      include: {
+        _count: {
+          select: { likes: true },
+        },
+      },
     });
 
     if (!album) throw new NotFoundException('Album not found');
@@ -70,7 +89,12 @@ export class AlbumsService {
       throw new ForbiddenException('You cannot view this album');
     }
 
-    return album;
+    const { _count, ...rest } = album;
+
+    return {
+      ...rest,
+      likesCount: _count.likes,
+    };
   }
 
   // 앨범 삭제 (본인만) + 조인 테이블 정리

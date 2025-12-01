@@ -94,6 +94,11 @@ export class PhotosService {
       take: take + 1, // 다음 페이지 여부 판단 위해 1개 더
       cursor: query.cursor ? { id: query.cursor } : undefined,
       skip: query.cursor ? 1 : 0,
+      include: {
+        _count: {
+          select: { likes: true },
+        },
+      },
     });
 
     let nextCursor: string | null = null;
@@ -103,7 +108,18 @@ export class PhotosService {
     }
 
     return {
-      items: photos,
+      items: photos.map((p) => ({
+        id: p.id,
+        ownerId: p.ownerId,
+        fileUrl: p.fileUrl,
+        title: p.title,
+        description: p.description,
+        visibility: p.visibility,
+        isShared: p.isShared,
+        createdAt: p.createdAt,
+        updatedAt: p.updatedAt,
+        likesCount: p._count.likes,
+      })),
       nextCursor,
     };
   }
@@ -112,6 +128,11 @@ export class PhotosService {
   async getPhotoById(photoId: string, requesterId?: string) {
     const photo = await this.prisma.photo.findUnique({
       where: { id: photoId },
+      include: {
+        _count: {
+          select: { likes: true },
+        },
+      },
     });
 
     if (!photo) {
@@ -125,7 +146,12 @@ export class PhotosService {
       throw new ForbiddenException('You cannot view this photo');
     }
 
-    return photo;
+    const { _count, ...rest } = photo;
+
+    return {
+      ...rest,
+      likesCount: _count.likes,
+    };
   }
 
   // 사진 삭제 (본인만)

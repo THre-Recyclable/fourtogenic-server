@@ -1,4 +1,4 @@
-// src/users/users.controller.ts
+//src/users/users.controller.ts
 import {
   Body,
   Controller,
@@ -8,6 +8,8 @@ import {
   Param,
   UseGuards,
   Req,
+  UploadedFile,
+  UseInterceptors,
 } from '@nestjs/common';
 import { UsersService } from './users.service';
 import { RegisterDto } from './dto/register.dto';
@@ -23,11 +25,15 @@ import {
   ApiCreatedResponse,
   ApiUnauthorizedResponse,
   ApiBadRequestResponse,
+  ApiConsumes,
+  ApiBody,
 } from '@nestjs/swagger';
 import {
   MyProfileResponseDto,
   PublicProfileResponseDto,
 } from './dto/profile-response.dto';
+import { FileInterceptor } from '@nestjs/platform-express';
+import * as multer from 'multer';
 
 interface JwtPayload {
   sub: string;
@@ -75,18 +81,52 @@ export class UsersController {
 
   @UseGuards(AuthGuard)
   @Patch('users/me')
-  @ApiOperation({ summary: '내 프로필 수정, 토큰 있어야 합니다.' })
+  @ApiOperation({
+    summary: '내 프로필 수정 (텍스트 + 프로필 사진 업로드 가능)',
+  })
   @ApiBearerAuth('access-token')
+  @ApiConsumes('multipart/form-data') // ✅ 이제 multipart
+  @UseInterceptors(
+    FileInterceptor('avatar', {
+      storage: multer.memoryStorage(),
+    }),
+  )
+  @ApiBody({
+    description: '프로필 수정: 텍스트 필드 + 선택적인 아바타 파일',
+    schema: {
+      type: 'object',
+      properties: {
+        avatar: {
+          type: 'string',
+          format: 'binary',
+        },
+        displayName: {
+          type: 'string',
+          example: '루나',
+        },
+        bio: {
+          type: 'string',
+          example: '사진 찍는 거 좋아하는 사람',
+        },
+        avatarUrl: {
+          type: 'string',
+          example: 'https://example.com/avatar.png',
+          description: '파일 대신 URL을 직접 넣고 싶을 때',
+        },
+      },
+    },
+  })
   @ApiOkResponse({
     description: '수정된 프로필 반환',
     type: MyProfileResponseDto,
   })
   updateMe(
     @Req() req: Request & { user: JwtPayload },
+    @UploadedFile() file: Express.Multer.File,
     @Body() dto: UpdateProfileDto,
   ) {
     const userId = req.user.sub;
-    return this.usersService.updateMe(userId, dto);
+    return this.usersService.updateMe(userId, dto, file);
   }
 
   @Get('users/:id')
