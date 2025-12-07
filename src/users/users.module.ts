@@ -11,7 +11,7 @@ import { S3Service } from 'src/storage/s3.service';
   imports: [
     JwtModule.register({
       secret: jwtConstants.secret,
-      signOptions: { expiresIn: '1h' },
+      signOptions: { expiresIn: '1d' },
     }),
   ],
   controllers: [UsersController],
